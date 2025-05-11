@@ -174,8 +174,15 @@ public class Function {
             
             long roleId = data.get("roleId").getAsLong();
             
-            // Update all users with this role - set their role to NULL
-            updateUsersAfterRoleDeletion(roleId, logger);
+            // 1. Update all users with this role - set their role to NULL
+            boolean usersUpdated = updateUsersBeforeRoleDeletion(roleId, logger);
+            
+            if (usersUpdated) {
+                // 2. Delete the role from the ROLES table
+                deleteRoleFromDatabase(roleId, logger);
+            } else {
+                logger.warning("No se pudieron actualizar los usuarios para el rol ID=" + roleId + ". No se procederá a eliminar el rol.");
+            }
             
         } catch (Exception e) {
             logger.severe("Error processing role deletion: " + e.getMessage());
@@ -183,21 +190,48 @@ public class Function {
     }
     
     /**
-     * Update all users belonging to a deleted role
+     * Update all users belonging to a role that is about to be deleted
      */
-    private void updateUsersAfterRoleDeletion(long roleId, Logger logger) {
+    private boolean updateUsersBeforeRoleDeletion(long roleId, Logger logger) {
         String query = "UPDATE USUARIOS SET ROL = NULL WHERE ROL = ?";
+        logger.info("Intentando actualizar usuarios para el rol ID: " + roleId);
         
-        try (Connection conn = DatabaseConnection.getConnection();
+        try (Connection conn = DatabaseConnection.getConnection(); // Assuming consumer has its own DB connection logic
              PreparedStatement stmt = conn.prepareStatement(query)) {
             
             stmt.setLong(1, roleId);
             
             int updatedRows = stmt.executeUpdate();
-            logger.info("Updated " + updatedRows + " users after role deletion (roleId: " + roleId + ")");
+            logger.info("Usuarios actualizados (ROL a NULL) para rol ID " + roleId + ": " + updatedRows);
+            return true; // Indicate success
             
         } catch (SQLException e) {
-            logger.severe("Database error updating users after role deletion: " + e.getMessage());
+            logger.severe("Error de base de datos al actualizar usuarios (ROL a NULL) para rol ID " + roleId + ": " + e.getMessage());
+            return false; // Indicate failure
+        }
+    }
+    
+    /**
+     * Delete the role from the ROLES table
+     */
+    private void deleteRoleFromDatabase(long roleId, Logger logger) {
+        String query = "DELETE FROM ROLES WHERE ID = ?";
+        logger.info("Intentando eliminar rol ID: " + roleId + " de la base de datos.");
+        
+        try (Connection conn = DatabaseConnection.getConnection(); // Assuming consumer has its own DB connection logic
+             PreparedStatement stmt = conn.prepareStatement(query)) {
+            
+            stmt.setLong(1, roleId);
+            
+            int rowsAffected = stmt.executeUpdate();
+            if (rowsAffected > 0) {
+                logger.info("Rol ID " + roleId + " eliminado exitosamente de la base de datos.");
+            } else {
+                logger.warning("No se encontró el rol ID " + roleId + " para eliminar, o ya fue eliminado.");
+            }
+            
+        } catch (SQLException e) {
+            logger.severe("Error de base de datos al eliminar rol ID " + roleId + ": " + e.getMessage());
         }
     }
 }
