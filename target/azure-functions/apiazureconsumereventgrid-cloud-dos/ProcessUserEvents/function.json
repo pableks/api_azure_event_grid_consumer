@@ -1,0 +1,9 @@
+{
+  "scriptFile" : "../api_azure_event_grid_consumer-1.0-SNAPSHOT.jar",
+  "entryPoint" : "apiazureeventgridconsumer.Function.run",
+  "bindings" : [ {
+    "type" : "eventGridTrigger",
+    "direction" : "in",
+    "name" : "eventGridEvent"
+  } ]
+}
